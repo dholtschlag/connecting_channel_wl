@@ -1,0 +1,73 @@
+---
+title: "Read Water Level Data"
+author: " `r "
+date: "`r format(Sys.Date(), '%A %b %d, %Y') `"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read simplified file version 
+
+
+```{r read_wl, fig.width = 8}
+algonac_wl <- read.csv('../Data/Algonac_9014070_wl.csv', 
+                       colClasses = c("Date", "NULL",'NULL','NULL','NULL','numeric',rep('NULL',5)))
+
+colnames(algonac_wl)[2] <- 'mean_mo_wl_m'
+
+# Plot time series of monthly values color coded by month
+algonac_wl %>% 
+  mutate( month = format(Date, '%b'),
+          month = factor(month, levels = c(month.abb))) %>% 
+  ggplot( aes( x = Date, y = mean_mo_wl_m)) +
+  geom_point( aes(color = month ))
+
+
+
+# Subtract annual mean from monthly values
+tmp <- algonac_wl %>% 
+  mutate( month = format(Date, "%b"), year = format(Date, "%Y"),
+          month = factor( month, levels = c(month.abb) )) %>% 
+  group_by( year ) %>% 
+  mutate( mo_wl_deviance_annual_mean = mean_mo_wl_m - mean(mean_mo_wl_m) ) %>% 
+  ungroup()
+  
+  tmp %>% 
+    group_by(month) %>% 
+    ggplot( aes( x = month, y = mo_wl_deviance_annual_mean)) +
+    geom_boxplot()
+
+
+  mutate( mean_annualized_mo_wl_m = mean_mo_wl_m - mean_annual_wl )
+
+
+
+
+algonac_wl %>% 
+  mutate( month = format(Date, "%m"), year = format(Date, "%Y")) %>% 
+  group_by(year) %>% 
+  summarise(count = n()) %>%
+  mutate( year = as.numeric( year)) %>% 
+  ggplot( aes(x = year, y = count) ) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_x_continuous( breaks = seq(1925, 2020, by = 5) ) +
+  ylab('Number of monthly measurements per year') +
+  xlab('Year')
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
