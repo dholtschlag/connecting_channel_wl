@@ -1,0 +1,177 @@
+---
+title: "Analyze Water Level Changes on St. Clair River between Fort Gratiot and Dunn Paper"
+author: "Dave Holtschlag"
+date: "`r format(Sys.Date(), '%A %b %d, %Y') `"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(kableExtra)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read simplified file containing  
+
+```{r read_wl, fig.width = 9}
+
+# First FG site
+FG1 <- read.csv('../Data/Fort_Gratiot_9014098_wl.csv', 
+                       colClasses = c("Date", "NULL",'NULL','NULL','NULL','numeric',rep('NULL',5)))
+
+colnames(FG1)[2] <- 'FG1'
+
+# Second FG site
+FG2 <- read.csv('../Data/Fort_Gratiot_9014099_wl.csv', 
+                       colClasses = c("Date", "NULL",'NULL','NULL','NULL','numeric',rep('NULL',5)))
+
+colnames(FG2)[2] <- 'FG2'
+
+# First DP site
+
+DP  <- read.csv('../Data/Dunn_Paper_9014096_wl.csv', 
+                       colClasses = c("Date", "NULL",'NULL','NULL','NULL','numeric',rep('NULL',5)))
+
+colnames(DP)[2] <- 'DP'
+
+
+```
+
+## Time series plot of monthly water levels on St. Clair River at Algonac, MI
+
+```{r plot_wl_ts, fig.width = 10}
+# Plot time series of monthly values color coded by month
+FG1_DP_wide <- FG1 %>% 
+  left_join(DP, by = 'Date', keep = TRUE) %>%
+  # Symbol '_m_' used to indicate difference between water levels
+  mutate(FG1_m_DP = FG1 - DP,
+         mean_wl = (FG1 + DP)/2)
+
+FG1_DP_long <- FG1_DP_wide %>% 
+  gather( Site, WL_m, FG1:DP, -Date ) %>% 
+  mutate( month = format(Date, '%b'),
+          month = factor(month, levels = c(month.abb))) 
+
+FG1_DP_long %>% 
+  ggplot( aes( x = Date, y = WL_m)) +
+  geom_line( aes(color = Site )) +
+  theme( legend.position = 'bottom') + 
+  scale_x_date( breaks = seq.Date( as.Date('1970-01-01'), as.Date('2020-01-01'), by = '5 year'),
+                date_labels = '%Y' ) +
+  labs(title = 'Figure 1. Monthly water levels on St. Clair River between Fort Gratiot1 (FG1) and Dunn Paper (DP)' ) +
+  theme_bw() +
+  ylab('Water Level, in meters above IGLD' ) +
+  theme( legend.position = 'bottom')
+
+```
+
+## Distribution of monthly water levels from corresponding annual means
+
+Deviations of monthly water levels from corresponding annual mean water levels (mean_wl_dev) are computed and shown as boxplots. The greatest positive water level deviations generally occur in the summer months of June, July, and August.  The greatest negative deviations occur during the winter months from November through March. The months from December through February also generally have a greater variability, as indicated by the relatively large interquartile ranges. Some of the variability during these three months may be associated with year to year variations in ice backwater affect. 
+
+
+```{r mo_water_level_dev, fig.width = 10}
+
+FG1_DP_wide %>% 
+  mutate( month = format(Date, "%b"), year = format(Date, "%Y"),
+          month = factor( month, levels = c(month.abb) )) %>% 
+  group_by( year ) %>% 
+  # Compute the monthly mean water level deviance from the annual 
+  mutate( mean_wl_dev = mean_wl - mean(mean_wl) ) %>% 
+  ungroup() %>% 
+  group_by(month) %>% 
+  ggplot( aes( x = month, y = mean_wl_dev)) +
+  geom_boxplot() +
+  ylab('Monthly Deviances from Annual Means, in meters') +
+  xlab('Month') +
+  theme_bw() +
+  scale_y_continuous( breaks = seq(-0.5, 0.4, 0.1)) +
+  geom_hline( yintercept = 0, lty = 'dashed', color = 'blue') +
+  labs(title = 'Figure 2. Distribution of monthly deviances from annual mean water levels on St. Clair River between Fort Gratiot1 and Dunn Paper')
+
+```
+
+
+
+```{r plot_fall_ts, fig.width = 9}
+
+FG1_DP_wide %>% 
+  ggplot( aes( x = Date, y = FG1_m_DP)) +
+  geom_point() +
+  scale_x_date( breaks = seq.Date( as.Date('1970-01-01'), as.Date('2020-01-01'), by = '5 year'),
+                date_labels = '%Y') +
+  scale_y_continuous( breaks = seq(0, 0.25, by = 0.05)) +
+  theme_bw() +
+  ylab('Water-Level fall, in meters' ) +
+  labs(title = 'Figure 2. Monthly mean water level fall on St. Clair River between Fort Gratiot1 and Dunn Paper')
+
+
+
+```
+
+## Relation between mean water level and fall between Fort Gratiot and Dunn Paper
+
+A linear regression indicates a positive relation between mean water level and fall, indicating that higher water levels are generally associated with greater water surface falls. This linear relation explains about 25.6 percent of the variability in    fall of water surface elevations. 
+
+```{r cov_diff, fig.width = 9.5}
+
+FG1_DP_wide %>% 
+  ggplot( aes( x = mean_wl, y = FG1_m_DP )) +
+  geom_point() +
+  theme_bw()   +
+  xlab('Mean Water Level at Fort Gratiot1 and Dunn Paper, in meters above IGLD') +
+  ylab('Water Level Fall between FG1 and DP, in meters') +
+  geom_smooth( method = lm) +
+  labs(title = 'Figure 3. Relation between Water Level and Fall on St. Clair River between Fort Gratiot1 and Dunn Paper') +
+  scale_y_continuous( breaks = seq( 0, 0.25, by = 0.05) )
+
+# Regession relation shown in geom_smooth above
+lm1 <- lm( FG1_m_DP ~ mean_wl, data = FG1_DP_wide)
+print(summary(lm1))
+
+
+```
+
+
+
+## Frequencies of Monthly Water-Level Measurements on St. Clair River
+
+Frequencies of monthly water-level measurements on St. Clair River at Algonac, MI, were completed from 1977 through 2019, except for 1988 when on 11 months were considered complete.  
+
+
+```{r plot_meas_freq, fig.width = 9}
+
+FG1_DP_long %>% 
+  mutate( month = format(Date, "%m"), year = format(Date, "%Y")) %>% 
+  group_by(Site, year) %>% 
+  summarise(non_na_count = sum(!is.na( WL_m ))) %>%
+  mutate( year = as.numeric( year)) %>% 
+  spread( Site, non_na_count ) %>% 
+   kable() %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+
+
+FG1_DP_long %>% 
+  mutate( month = format(Date, "%m"), year = format(Date, "%Y")) %>% 
+  group_by(Site, year) %>% 
+  summarise(count = sum(!is.na( WL_m )))  %>% 
+  mutate( year = as.numeric( year)) %>% 
+  group_by(Site) %>% 
+  ggplot( aes(x = year, y = count, color = Site, shape = Site, size = Site)) +
+  geom_point( stroke = 2) +
+  scale_shape_manual(values = c(0, 4)) +
+  scale_color_manual(values = c("red", "blue")) +
+  scale_size_manual( values = c(2, 2))
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_x_continuous( breaks = seq(1970, 2020, by = 5) ) +
+  scale_y_continuous( breaks = seq(1, 12, 1), limits = c(0.75, 12.25)) +
+  ylab('Number of monthly measurements per year') +
+  xlab('Year') +
+  labs( title = 'Figure 3. Frequency of monthly water-level measurements on St. Clair River at Algonac, MI')
+
+
+
+```
+
