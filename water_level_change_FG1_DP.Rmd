@@ -1,0 +1,270 @@
+---
+title: "Analysis of Trends in Water Level Fall between Gages at Fort Gratiot and Dunn Paper on St. Clair River"
+author: "Dave Holtschlag"
+date: "`r format(Sys.Date(), '%A %b %d, %Y') `"
+output: html_document
+---
+
+Set up computational environment
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(kableExtra)
+library(trend)
+library(forecast)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read monthly water level data files  
+
+Comma seperated value (csv) data files of monthly water levels on St. Clair River were e-mailed by Tim Calappi, USACE Detroit District, on October 23, 2019. Two features of the data sets were modified to facilitate the transition from the use of the Python programming environment to the R programming environment. First, the 'NaN' qualifiers were replaced with 'NA' qualifiers.  In R, 'NAN' implies that a value was provided, but it was not a number; whereas 'NA' implies that a number was not available.  Second, double quotes were removed. The slightly modified file was also a csv file with the same name.  Only the Date and mean water level were imported into the R environment.   
+
+```{r read_wl, fig.width = 9}
+
+# First FG site
+FG1 <- read.csv('../Data/Fort_Gratiot_9014098_wl.csv', 
+                       colClasses = c("Date", "NULL",'NULL','NULL','NULL','numeric',rep('NULL',5)))
+
+colnames(FG1)[2] <- 'FG1'
+
+# Second FG site
+FG2 <- read.csv('../Data/Fort_Gratiot_9014099_wl.csv', 
+                       colClasses = c("Date", "NULL",'NULL','NULL','NULL','numeric',rep('NULL',5)))
+
+colnames(FG2)[2] <- 'FG2'
+
+# First DP site
+
+DP  <- read.csv('../Data/Dunn_Paper_9014096_wl.csv', 
+                       colClasses = c("Date", "NULL",'NULL','NULL','NULL','numeric',rep('NULL',5)))
+
+colnames(DP)[2] <- 'DP'
+
+
+```
+## Time series plot of monthly water levels on St. Clair River at the Fort Gratiot and Dunn Paper Gages
+
+The location of the Fort Gratiot (FG) gage changed during the period of record and required analysis to homogenize the the two partial time series. The water level data at NOAA gage 9014098 is referred to here as FG1, and may differ slightly from the data at the alternate location referred to as FG2 (NOAA gage 9014099).  The Dunn Paper gage (NOAA gage 9014096) is downstream from FG1, so the monthly water levels at Dunn Paper are always lower. Periods of missing water level data are indicated by gaps in the time series plot of data points (Fig. 1).
+
+```{r plot_wl_ts, fig.width = 10}
+# Join (horizontally append) data from FG1 and DP based on Date
+FG1_DP_wide <- FG1 %>% 
+  left_join(DP, by = 'Date', keep = TRUE) %>%
+  # Compute the water-level fall as FG1 - DP, and the mean water level as (FG1 + DP)/2
+  # Symbol '_m_' used to indicate difference between water levels
+  mutate(FG1_m_DP = FG1 - DP,
+         mean_WL = (FG1 + DP)/2)
+
+# Convert from the wide form of appended data to a long form 
+FG1_DP_long <- FG1_DP_wide %>% 
+  gather( Site, WL_m, FG1:DP, -Date ) %>% 
+  mutate( month = format(Date, '%b'),
+          month = factor(month, levels = c(month.abb))) 
+
+# Use the long form of the data file to produce the plot
+FG1_DP_long %>% 
+  ggplot( aes( x = Date, y = WL_m)) +
+  geom_point( aes(color = Site )) +
+  theme( legend.position = 'bottom') + 
+  scale_x_date( breaks = seq.Date( as.Date('1970-01-01'), as.Date('2020-01-01'), by = '5 year'),
+                date_labels = '%Y' ) +
+  labs(title = 'Figure 1. Monthly water levels on St. Clair River between Fort Gratiot1 (FG1) and Dunn Paper (DP)' ) +
+  theme_bw() +
+  ylab('Water Level, in meters above IGLD' ) +
+  theme( legend.position = 'bottom')
+
+```
+
+## Distribution of monthly water levels from corresponding annual means
+
+Deviations of monthly water levels from corresponding annual mean water levels (mean_WL_dev) are computed and shown as boxplots. The greatest positive water level deviations generally occur in the summer months of June, July, and August.  The greatest negative deviations occur during the winter months from November through March. The months from December through February also generally have a greater variability, as indicated by the relatively large interquartile ranges. Some of the variability during these three months may be associated with year to year variations in ice backwater affect. 
+
+
+```{r mo_water_level_dev, fig.width = 10}
+
+FG1_DP_wide %>% 
+  mutate( month = format(Date, "%b"), year = format(Date, "%Y"),
+          month = factor( month, levels = c(month.abb) )) %>% 
+  group_by( year ) %>% 
+  # Compute the monthly mean water level deviance from the annual 
+  mutate( mean_WL_dev = mean_WL - mean( mean_WL) ) %>% 
+  ungroup() %>% 
+  group_by(month) %>% 
+  ggplot( aes( x = month, y = mean_WL_dev)) +
+  geom_boxplot() +
+  ylab('Monthly Deviances from Annual Means, in meters') +
+  xlab('Month') +
+  theme_bw() +
+  scale_y_continuous( breaks = seq(-0.5, 0.4, 0.1)) +
+  geom_hline( yintercept = 0, lty = 'dashed', color = 'blue') +
+  labs(title = 'Figure 2. Distribution of monthly deviances from annual mean water levels on St. Clair River between Fort Gratiot1 and Dunn Paper')
+
+```
+
+
+```{r plot_fall_ts, fig.width = 9}
+
+FG1_DP_wide %>% 
+  ggplot( aes( x = Date, y = FG1_m_DP)) +
+  geom_point() +
+  scale_x_date( breaks = seq.Date( as.Date('1970-01-01'), as.Date('2020-01-01'), by = '5 year'),
+                date_labels = '%Y') +
+  scale_y_continuous( breaks = seq(0, 0.25, by = 0.05)) +
+  theme_bw() +
+  ylab('Water-Level fall, in meters' ) +
+  labs(title = 'Figure 2. Monthly mean water level fall on St. Clair River between Fort Gratiot1 and Dunn Paper')
+
+
+
+```
+
+## Relation between mean water level and fall between Fort Gratiot and Dunn Paper
+
+A linear regression indicates a positive relation between mean water level and fall, indicating that higher water levels are generally associated with greater water surface falls. This linear relation explains about 25.6 percent of the variability in    fall of water surface elevations. 
+
+```{r cov_diff, fig.width = 9.5}
+
+FG1_DP_wide %>% 
+  ggplot( aes( x = mean_WL, y = FG1_m_DP )) +
+  geom_point() +
+  theme_bw()   +
+  xlab('Mean Water Level at Fort Gratiot1 and Dunn Paper, in meters above IGLD') +
+  ylab('Water Level Fall between FG1 and DP, in meters') +
+  geom_smooth( method = lm) +
+  labs(title = 'Figure 3. Relation between Water Level and Fall on St. Clair River between Fort Gratiot1 and Dunn Paper') +
+  scale_y_continuous( breaks = seq( 0, 0.25, by = 0.05) )
+
+# Regession relation shown in geom_smooth above
+lm1 <- lm( FG1_m_DP ~ mean_WL, data = FG1_DP_wide)
+print(summary(lm1))
+
+
+```
+
+## Frequencies of Monthly Water-Level Measurements on St. Clair River
+
+Frequencies of monthly water-level measurements on St. Clair River at Algonac, MI, were completed from 1977 through 2019, except for 1988 when on 11 months were considered complete.  
+
+
+```{r plot_meas_freq, fig.width = 9}
+
+FG1_DP_long %>% 
+  mutate( month = format(Date, "%m"), year = format(Date, "%Y")) %>% 
+  group_by(Site, year) %>% 
+  summarise(non_na_count = sum(!is.na( WL_m ))) %>%
+  mutate( year = as.numeric( year)) %>% 
+  spread( Site, non_na_count ) %>% 
+   kable() %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+
+```
+
+
+```{r plot_stuff}
+
+FG1_DP_long %>% 
+  mutate( month = format(Date, "%m"), year = format(Date, "%Y")) %>% 
+  group_by(Site, year) %>% 
+  summarise(count = sum(!is.na( WL_m )))  %>% 
+  mutate( year = as.numeric( year)) %>% 
+  group_by(Site) %>% 
+  ggplot( aes(x = year, y = count, color = Site, shape = Site, size = Site)) +
+  geom_point( stroke = 1.5) +
+  scale_shape_manual(values = c(0, 4)) +
+  scale_color_manual(values = c("red", "blue")) +
+  scale_size_manual( values = c(2, 2)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_x_continuous( breaks = seq(1970, 2020, by = 5) ) +
+  scale_y_continuous( breaks = seq(1, 12, 1), limits = c(0.75, 12.25)) +
+  ylab('Number of monthly measurements per year') +
+  xlab('Year') +
+  labs( title = 'Figure 3. Frequency of monthly water-level measurements on St. Clair River at Algonac, MI')
+
+```
+
+
+```{r ts_vec}
+# Create time series object
+#   Time series object based on longest interval of continuous record at upstream and downstream water level gages
+
+# Monthly mean water level fall between FG1 and DP
+ts_FG1_m_DP   <- ts(FG1_DP_wide$FG1_m_DP[120:563], start = c(1982, 1), end = c(2018, 12), deltat = 1/12)
+print('First ten rows of ts_FG1_m_DP')
+print(matrix(ts_FG1_m_DP[1:120], byrow = TRUE, ncol = 12))
+
+# Monthly mean water level between FG1 and DP, in meters above IGLD
+ts_mean_WL    <- ts(FG1_DP_wide$mean_WL[120:563],  start = c(1982, 1), end = c(2018, 12), deltat = 1/12)
+print('First ten rows of ts_mean_WL')
+print(matrix(ts_mean_WL[1:120],  byrow = TRUE, ncol = 12))
+
+# Residual water level fall between Fort Gratiot1 and Dunn Paper 
+#  NOTE: The names (row numbers) of the lm residuals account for 2 missing values. Thus, rows must be accessed based on their row *names* rather than the original row numbers.  
+ndx_lm <- which(as.integer(names(lm1$residuals)) %in% 120:563)
+ts_fall_resid <- ts(lm1$residuals[ndx_lm],         start = c(1982, 1), end = c(2018, 12), deltat = 1/12)
+print('First ten rows of ts_fall_resid')
+print(matrix(ts_fall_resid[1:120],  byrow = TRUE, ncol = 12), digits = 3)
+
+```
+
+## Trend Analsis
+All trend analyses are based on R functions documented in the trend package (Thorsten, 2018).
+
+
+Thorsten Pohlert (2018). trend: Non-Parametric Trend Tests and Change-Point Detection. R package version 1.1.1.
+  https://CRAN.R-project.org/package=trend
+
+### Trend Analysis: Correlated Seasonal Mann-Kendal Test (csmk)
+
+
+
+**Description** Performs a Seasonal Mann-Kendall test under the presence of correlated seasons.
+
+**Usage** csmk.test(x, alternative = c("two.sided", "greater", "less"))
+
+**Arguments** x a time series object with class ts comprising >= 2 seasons; NA values are not
+allowed alternative the alternative hypothesis, defaults to two.side
+
+**Results** The csmk test indicates no significant trend (*p = 0.401) in monthly water level fall data on St. Clair River between Fort Gration1 and Dunn Paper during the period 1982 through 2018. Extracting the linear relation between water level on water-level fall produces a series of residuals that are less affected by hydrologic (flow related) conditions during the selected hydrologic period of analysis. After removing this linear component, the csmk test indicates a significant trend (p = 4.061e-06). The csmk test results show lower statistical significance than the seasonal Mann-Kendall test on both the monthly water level fall and the fall residual time series (p = 0.01645, and <2.2e-16, respectively). Autocorrelation plots for the water-level fall and water-level-fall residuals show excess autocorrelation.  Therefore, the results of the csmk test are considered more reliable.  
+
+```{r csmk, fig.width = 9}
+# csmk.test Correlated Seasonal Mann-Kendall Test
+# Performs a Seasonal Mann-Kendall test under the presence of correlated seasons.
+trend_out_csmk_fall <- csmk.test(ts_FG1_m_DP, alternative = c("two.sided"))
+print(trend_out_csmk_fall)
+
+
+trend_out_csmk_fall_resid <- csmk.test(ts_fall_resid, alternative = c("two.sided"))
+print(trend_out_csmk_fall_resid)
+
+ggAcf(ts_FG1_m_DP, lag.max = 36)
+
+ggAcf(ts_fall_resid, lag.max = 36)
+
+trend_out_smk_fall <- smk.test(ts_FG1_m_DP, alternative = c("two.sided"))
+print(trend_out_smk_fall)
+
+
+trend_out_smk_fall_resid <- smk.test(ts_fall_resid, alternative = c("two.sided"))
+print(trend_out_smk_fall_resid)
+
+```
+
+
+### Seasonal Sen's Slope
+
+
+```{r sen_slope}
+
+trend_out_sea_sens_slope_fall <- sea.sens.slope(ts_FG1_m_DP)
+print(paste("Season Sen's Slope Estimate of fall:", format(trend_out_sea_sens_slope_fall, digits = 5), 
+ 'in meters per month'))
+
+trend_out_sea_sens_slope_fall_resid <- sea.sens.slope( ts_fall_resid )
+print(paste("Season Sen's Slope Estimate of fall residual:", format(trend_out_sea_sens_slope_fall_resid, digits = 5), 
+ 'in meters per month'))
+
+
+
+```
