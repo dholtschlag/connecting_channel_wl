@@ -5,6 +5,14 @@ date: "`r format(Sys.Date(), '%A %b %d, %Y') `"
 output: html_document
 ---
 
+## Abstract
+
+Monthly water-level data on St. Clair River from the Fort Gratiot (NOAA 9014098) downstream to the Dunn Paper (NOAA 9014096) gages were analyzed to detect possible trends from 1982 through 2018 in the water-level fall between the two gages. Preliminary analysis of the data indicated the highest monthly deviations from the annual means occurred during the summer months of June July and August. Deviations during the winter months of December, January, and February were generally lower and more variable than other months. Some of the increased variability during the winter months may have been due to annually varying backwater conditions associated with channel ice.  In addition, 
+a significant positive linear relation was detected between the monthly mean water level computed from contemporaneous data at the two gages and the water-level fall between the gages. This linear component could results of the trend analysis sensitive to the particular hydrologic conditions (water levels and flows) during the period of analysis.          
+
+
+
+
 Set up computational environment
 
 ```{r setup, include=FALSE}
@@ -161,7 +169,9 @@ FG1_DP_long %>%
 ```
 
 
-```{r plot_stuff}
+
+
+```{r id_missing_por, fig.width = 9}
 
 FG1_DP_long %>% 
   mutate( month = format(Date, "%m"), year = format(Date, "%Y")) %>% 
@@ -255,6 +265,7 @@ print(trend_out_smk_fall_resid)
 ### Seasonal Sen's Slope
 
 
+
 ```{r sen_slope}
 
 trend_out_sea_sens_slope_fall <- sea.sens.slope(ts_FG1_m_DP)
@@ -265,6 +276,77 @@ trend_out_sea_sens_slope_fall_resid <- sea.sens.slope( ts_fall_resid )
 print(paste("Season Sen's Slope Estimate of fall residual:", format(trend_out_sea_sens_slope_fall_resid, digits = 5), 
  'in meters per month'))
 
+
+```
+
+
+### Analysis of Monthly Trends
+
+```{r mo_trends}
+
+ndx_lm <- which(as.integer(names(lm1$residuals)) %in% 120:563)
+tmp <- FG1_DP_wide[120:563,] %>% 
+  mutate( month = as.numeric(format(Date, '%m'))) 
+
+
+# Initialize dataframe to contain output
+n_row <- 24;
+sens_slope_df <- data.frame( site_name   = rep(NA, n_row), 
+                             stat_name   = rep(NA, n_row),
+                             mo          = rep(NA, n_row),  # i
+                             slope_l025  = rep(NA, n_row),  # conf.int[1]
+                             sens_slope  = rep(NA, n_row),  # estimates
+                             slope_u975  = rep(NA, n_row),  # conf.int[2]
+                             z           = rep(NA, n_row),  # statistic
+                             n           = rep(NA, n_row),  # parameter
+                             p_value     = rep(NA, n_row))  # p.value
+
+sens_slope_df$site_name <-   'FG1_DP'
+
+
+# Initialize increment for dataframe
+j <- 0 
+
+for (i in 1:12){
+  ndx_mo  <- which(tmp$month == i)
+  # Fall analysis
+  mo_fall <- tmp$FG1_m_DP[ndx_mo]
+
+  #  Sen's Slope
+  sens_out_mo_mk_fall  <- sens.slope(mo_fall, conf.level = 0.95)
+  # print(sens_out_mo_mk_fall)
+  j <- j + 1
+  sens_slope_df$stat_name[j]    <- 'fall'
+  sens_slope_df$mo[j]           <- month.abb[i]
+  sens_slope_df$sens_slope[j]   <- sens_out_mo_mk_fall$estimates
+  sens_slope_df$slope_u975[j]   <- sens_out_mo_mk_fall$conf.int[2]
+  sens_slope_df$slope_l025[j]   <- sens_out_mo_mk_fall$conf.int[1]
+  sens_slope_df$z[j]            <- sens_out_mo_mk_fall$statistic
+  sens_slope_df$n[j]            <- sens_out_mo_mk_fall$parameter
+  sens_slope_df$p_value[j]      <- sens_out_mo_mk_fall$p.value
+  
+  # 
+  # fall_resid analysis
+  ndx_lm_sel    <- (ndx_lm)[ndx_mo]
+  mo_fall_resid <- lm1$residuals[ndx_lm_sel]
+  
+  #  Sen's Slope
+  sens_out_mo_mk_fall_resid  <- sens.slope(mo_fall_resid, conf.level = 0.95)
+  # print(sens_out_mo_mk_fall_resid)
+  j <- j + 1
+  sens_slope_df$stat_name[j]    <- 'fall_resid'
+  sens_slope_df$mo[j]           <- month.abb[i]
+  sens_slope_df$sens_slope[j]   <- sens_out_mo_mk_fall_resid$estimates
+  sens_slope_df$slope_u975[j]   <- sens_out_mo_mk_fall_resid$conf.int[2]
+  sens_slope_df$slope_l025[j]   <- sens_out_mo_mk_fall_resid$conf.int[1]
+  sens_slope_df$z[j]            <- sens_out_mo_mk_fall_resid$statistic
+  sens_slope_df$n[j]            <- sens_out_mo_mk_fall_resid$parameter
+  sens_slope_df$p_value[j]      <- sens_out_mo_mk_fall_resid$p.value
+}
+
+sens_slope_df %>% 
+  kable() %>% 
+  kable_styling()
 
 
 ```
