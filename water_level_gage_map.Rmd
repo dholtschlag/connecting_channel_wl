@@ -1,0 +1,48 @@
+---
+title: "Map of Water-Level Gage Locations"
+author: "Dave Holtschlag"
+date: "`r format(Sys.Date(), '%A %b %d, %Y') `"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggmap)
+library(leaflet)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read table of gage locations
+
+Reference for source material: Holtschlag, David, J., and Koschik, John, A., A two-dimensional hydrodynamic model of the St. Clair--Detroit River Waterway in the Great Lakes Basin, U.S. Geological Survey Water-Resources Investigations Report 01-4236, 63 p. 
+
+```{r gage_loc}
+knitr::opts_chunk$set(fig.width=10, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE, progress = FALSE)
+
+
+gage_loc <- read.csv('../Data/water_level_gages.tsv', sep = '\t', header = TRUE,
+                    comment.char = '#', stringsAsFactors = FALSE)
+
+gage_loc_usc <- gage_loc %>% 
+  dplyr::filter( reach == 'Upper St. Clair River' )
+
+
+bbox = c(left = -82.6, bottom = 42.8 , right = -82.3, top = 43.05)
+
+suppressMessages( get_stamenmap(bbox = bbox, zoom = 12, maptype = 'terrain-lines' )) %>%
+  ggmap() +
+  geom_point( aes(x = long, y = lat), data = gage_loc_usc, color = 'red') + 
+  geom_text( data = gage_loc_usc, aes( x = long, y = lat, label = paste(Site_id, site_name)),
+             size = 2, nudge_x = 0.005, hjust = 'left') +
+  xlab('Longitude') + 
+  ylab('Latitude') +
+  scale_x_continuous( breaks = seq(-82.6, -82.3, 0.1), labels = seq(-82.6, -82.3, 0.1),
+                      limits =   c(-82.6, -82.3)) +
+  scale_y_continuous( breaks = seq( 42.8,  43.05, 0.05), labels = seq( 42.8,  43.05, 0.05),
+                      limits =   c( 42.8,  43.05))
+  
+
+```
+
+
