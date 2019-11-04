@@ -12,6 +12,25 @@ library(leaflet)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Setup Google map access 
+
+```{r register_key}
+
+# this sets your google map for this session
+# Read google key from file
+google_key <- read_file('../maps/google_key.txt')
+
+# Register the key and delete it following registry
+register_google(key = google_key)
+rm('google_key')
+
+# check if key is saved
+has_google_key()
+```
+
+
+
+
 ## Read table of gage locations
 
 Reference for source material: Holtschlag, David, J., and Koschik, John, A., A two-dimensional hydrodynamic model of the St. Clair--Detroit River Waterway in the Great Lakes Basin, U.S. Geological Survey Water-Resources Investigations Report 01-4236, 63 p. 
@@ -30,6 +49,10 @@ gage_loc_usc <- gage_loc %>%
 
 bbox = c(left = -82.6, bottom = 42.8 , right = -82.3, top = 43.05)
 
+```
+
+
+```{r stamen_map}
 suppressMessages( get_stamenmap(bbox = bbox, zoom = 12, maptype = 'terrain-lines' )) %>%
   ggmap() +
   geom_point( aes(x = long, y = lat), data = gage_loc_usc, color = 'red') + 
@@ -42,6 +65,25 @@ suppressMessages( get_stamenmap(bbox = bbox, zoom = 12, maptype = 'terrain-lines
   scale_y_continuous( breaks = seq( 42.8,  43.05, 0.05), labels = seq( 42.8,  43.05, 0.05),
                       limits =   c( 42.8,  43.05))
   
+
+```
+
+
+```{r google_map, eval = FALSE}
+
+usc_map <- get_map( bbox, source = 'google', maptype = "terrain")
+usc_map %>% 
+  ggmap() +
+  geom_point( aes( x = long, y = lat), data = gage_loc_usc, color = 'red') +
+    geom_text( data = gage_loc_usc, aes( x = long, y = lat, label = paste(Site_id, site_name)),
+             size = 2, nudge_x = 0.005, hjust = 'left') +
+  xlab('Longitude') + 
+  ylab('Latitude') +
+  scale_x_continuous( breaks = seq(-82.6, -82.3, 0.1), labels = seq(-82.6, -82.3, 0.1),
+                      limits =   c(-82.6, -82.3)) +
+  scale_y_continuous( breaks = seq( 42.8,  43.05, 0.05), labels = seq( 42.8,  43.05, 0.05),
+                      limits =   c( 42.8,  43.05))
+
 
 ```
 
